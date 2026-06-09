@@ -55,16 +55,18 @@ The dashboard shows:
 
 1. Click **Register Corps Member** in the sidebar or on the dashboard
 2. Fill in all sections of the form:
-   - **Personal Information** — name, date of birth, gender, blood group, marital status
+   - **Personal Information** — name, date of birth, gender, blood group, marital status, and optionally a **Member Email** to create a portal login at the same time
    - **State & LGA** — state of origin, LGA, hometown
    - **Residential Information** — address, phone, occupation
    - **Next of Kin** — name, address, phone number
    - **Documents** — upload passport photo (max 2 MB) and signature (max 1 MB)
 3. Click **Register Corps Member**
-4. On success, a toast notification shows the generated **Personal Number**, **RC Number**, and **Form Number**
-5. Choose **Generate ID Card** to print the card immediately, or **Register Another** to add another member
+4. On success, the screen shows the generated **Personal Number**, **RC Number**, and **Form Number**
+5. If a Member Email was provided, the corps member's login credentials are also shown — note them down and share with the member
+6. Choose **Generate ID Card** to print the card immediately, or **Register Another** to add another member
 
 > Auto-generated codes follow the format: Personal Number `NG/KN/2026/001`, RC Number `RC-00001`, Form Number `FORM-00001`.
+> The Member Email field is optional. If left blank, the member will have no portal login (can be added later via Supabase if needed).
 
 ---
 
@@ -141,7 +143,9 @@ The table below the form lists all officer accounts with their role, rank, and s
 
 Corps members log in with their own credentials and are taken directly to **My Record**, where they can view all their registration details and photo. No editing is available from this view.
 
-> To link a corps member's login to their record: create their auth account via **Manage Officers** (set role to `member`), then update the applicant row's `linked_uid` in the Supabase Table Editor with the new user's UID.
+**How to get credentials:** The corps member's login is created automatically during registration when a **Member Email** is entered. Credentials are shown on the registration success screen and stored permanently on the member's record.
+
+**If a member loses their credentials:** Open the member's detail page from **All Records** → the **Member Login Credentials** card shows the email and a hidden password (click **Show** to reveal). Share these with the member.
 
 ---
 

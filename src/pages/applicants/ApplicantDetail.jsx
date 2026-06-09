@@ -15,6 +15,19 @@ function Field({ label, value }) {
   );
 }
 
+function PasswordField({ value }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="flex items-center gap-2 mt-0.5">
+      <p className="text-sm font-medium text-slate-800 font-mono">{show ? value : "••••••••••"}</p>
+      <button type="button" onClick={() => setShow(v => !v)}
+        className="text-xs text-green-700 hover:underline">
+        {show ? "Hide" : "Show"}
+      </button>
+    </div>
+  );
+}
+
 function SectionCard({ title, children }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
@@ -36,6 +49,7 @@ function rowToApplicant(row) {
     phoneNumber: row.phone_number, occupation: row.occupation, nextOfKinName: row.next_of_kin_name,
     nextOfKinAddress: row.next_of_kin_address, nextOfKinPhone: row.next_of_kin_phone,
     photoURL: row.photo_url, signatureURL: row.signature_url, status: row.status,
+    memberEmail: row.member_email, memberPassword: row.member_password,
   };
 }
 
@@ -188,6 +202,19 @@ export default function ApplicantDetail() {
                 <div className="col-span-2"><Field label="Address" value={applicant.nextOfKinAddress} /></div>
               </div>
             </SectionCard>
+
+            {applicant.memberEmail && (
+              <SectionCard title="Member Login Credentials">
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Email" value={applicant.memberEmail} />
+                  <div>
+                    <p className="text-xs text-slate-500 uppercase tracking-wide font-medium">Password</p>
+                    <PasswordField value={applicant.memberPassword} />
+                  </div>
+                </div>
+                <p className="text-xs text-slate-400 mt-3">Visible to officers and admins only. Share with member if login is lost.</p>
+              </SectionCard>
+            )}
           </div>
         </div>
       </div>

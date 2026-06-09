@@ -5,7 +5,7 @@ import { z } from "zod";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Upload, UserPlus, CreditCard } from "lucide-react";
 import toast from "react-hot-toast";
-import { supabase } from "../../supabase/config";
+import { supabase, adminSupabase } from "../../supabase/config";
 import { useAuth } from "../../context/AuthContext";
 import { generateApplicantCodes } from "../../utils/generateCodes";
 import { writeAuditLog } from "../../utils/auditLog";
@@ -27,6 +27,11 @@ const STATE_CODES = {
   "Zamfara": "ZA",
 };
 
+function generatePassword() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return "Nysc@" + Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
+
 const registrationSchema = z.object({
   surname: z.string().min(1, "Surname is required"),
   firstName: z.string().min(1, "First name is required"),
@@ -35,6 +40,7 @@ const registrationSchema = z.object({
   gender: z.enum(["Male", "Female"], { errorMap: () => ({ message: "Select gender" }) }),
   bloodGroup: z.enum(["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"], { errorMap: () => ({ message: "Select blood group" }) }),
   maritalStatus: z.enum(["Single", "Married", "Divorced", "Widowed"], { errorMap: () => ({ message: "Select marital status" }) }),
+  memberEmail: z.string().email("Enter a valid email address").optional().or(z.literal("")),
   stateOfOrigin: z.string().min(1, "State of origin is required"),
   lgaOfOrigin: z.string().min(1, "LGA of origin is required"),
   hometown: z.string().min(1, "Hometown is required"),
@@ -163,7 +169,7 @@ export default function RegisterApplicant() {
   };
 
   const STEP_FIELDS = [
-    ["surname", "firstName", "middleName", "dateOfBirth", "gender", "bloodGroup", "maritalStatus"],
+    ["surname", "firstName", "middleName", "dateOfBirth", "gender", "bloodGroup", "maritalStatus", "memberEmail"],
     ["stateOfOrigin", "lgaOfOrigin", "hometown"],
     ["residentialAddress", "stateOfResidence", "lgaOfResidence", "phoneNumber", "occupation"],
     ["nextOfKinName", "nextOfKinAddress", "nextOfKinPhone"],
@@ -213,8 +219,28 @@ export default function RegisterApplicant() {
         signature_url: signatureURL, status: "active", created_by: uid, linked_uid: null,
       });
       if (error) throw new Error(error.message);
+
+      let memberPassword = null;
+      if (data.memberEmail) {
+        memberPassword = generatePassword();
+        const { data: authData, error: authErr } = await adminSupabase.auth.admin.createUser({
+          email: data.memberEmail, password: memberPassword, email_confirm: true,
+        });
+        if (authErr) throw new Error("Login creation failed: " + authErr.message);
+        const { error: officerErr } = await supabase.from("officers").insert({
+          uid: authData.user.id,
+          full_name: `${data.surname} ${data.firstName}`,
+          email: data.memberEmail,
+          role: "member",
+        });
+        if (officerErr) throw new Error(officerErr.message);
+        await supabase.from("applicants")
+          .update({ linked_uid: authData.user.id, member_email: data.memberEmail, member_password: memberPassword })
+          .eq("personal_number", codes.personalNumber);
+      }
+
       await writeAuditLog("CREATE", codes.personalNumber, uid, {});
-      setSuccessData(codes);
+      setSuccessData({ ...codes, memberEmail: data.memberEmail || null, memberPassword });
       toast.success("Corps member registered successfully!");
     } catch (err) {
       toast.error("Registration failed: " + err.message);
@@ -232,7 +258,7 @@ export default function RegisterApplicant() {
           </div>
           <h2 className="text-xl font-bold text-slate-900 mb-1">Registration Successful!</h2>
           <p className="text-slate-500 text-sm mb-6">Corps member record has been created.</p>
-          <div className="bg-slate-50 rounded-xl p-4 mb-6 text-left space-y-2 border border-slate-200">
+          <div className="bg-slate-50 rounded-xl p-4 mb-4 text-left space-y-2 border border-slate-200">
             {[["Personal Number", successData.personalNumber], ["RC Number", successData.rcNumber], ["Form Number", successData.idFormNumber]].map(([lbl, val]) => (
               <div key={lbl} className="flex justify-between items-center">
                 <span className="text-slate-500 text-sm">{lbl}</span>
@@ -240,6 +266,22 @@ export default function RegisterApplicant() {
               </div>
             ))}
           </div>
+          {successData.memberEmail && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 text-left">
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-2">Member Login Credentials</p>
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 text-sm">Email</span>
+                  <span className="font-mono font-semibold text-slate-800 text-sm">{successData.memberEmail}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 text-sm">Password</span>
+                  <span className="font-mono font-semibold text-slate-800 text-sm">{successData.memberPassword}</span>
+                </div>
+              </div>
+              <p className="text-xs text-blue-600 mt-2">Share these with the corps member — they can log in immediately.</p>
+            </div>
+          )}
           <div className="flex gap-3 justify-center">
             <button onClick={() => { setSuccessData(null); reset(); setStep(0); setPhotoFile(null); setSigFile(null); setPhotoPreviewUrl(null); setSigPreviewUrl(null); }}
               className="flex items-center gap-2 bg-green-800 text-white px-5 py-2.5 rounded-lg hover:bg-green-700 text-sm font-medium">
@@ -286,6 +328,11 @@ export default function RegisterApplicant() {
                     <label className={labelClass}>Marital Status *</label>
                     <select {...register("maritalStatus")} className={inputClass}><option value="">Select</option>{["Single","Married","Divorced","Widowed"].map((s) => <option key={s}>{s}</option>)}</select>
                     {errors.maritalStatus && <p className={errClass}>{errors.maritalStatus.message}</p>}
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className={labelClass}>Member Email <span className="text-slate-400 text-xs font-normal">(optional — creates portal login)</span></label>
+                    <input type="email" {...register("memberEmail")} className={`${inputClass} ${errors.memberEmail ? "border-red-400" : ""}`} placeholder="corps.member@email.com" />
+                    {errors.memberEmail && <p className={errClass}>{errors.memberEmail.message}</p>}
                   </div>
                 </div>
               )}
